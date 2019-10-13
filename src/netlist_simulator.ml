@@ -120,7 +120,7 @@ let print_outputs l =
     l
 
 let execute filename =
-  let p = Netlist.read_file filename in
+  let p = Scheduler.schedule (Netlist.read_file filename) in
   Env.iter
     (fun x t -> match t with
        | TBit -> env := (Env.add x (VBit false) !env);
