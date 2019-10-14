@@ -27,5 +27,8 @@ setup.log
 *.exe
 simulator
 
+# Generated files
+src/netlist_lexer.ml
+
 # Dependencies
 .depend
