@@ -25,3 +25,7 @@ setup.log
 # Executables
 *.out
 *.exe
+netlist_simulator
+
+# Dependencies
+.depend
