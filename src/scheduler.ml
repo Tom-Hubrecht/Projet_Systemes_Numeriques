@@ -17,7 +17,8 @@ let read_exp eq =
     | Eslice(_, _, a) -> add v a
     | Eselect(_, a) -> add v a
     | Ereg(x) -> add r (Avar x) (* Les registres ont des dépendances inverses *)
-    | Erom(_) | Eram(_) -> () (* Pareil que les registres *)
+    | Erom(_, _, r_a) -> add v r_a
+    | Eram(_, _, r_a, _, _, w_d) -> add v r_a
   in
   aux_read eq;
   !v, !r
