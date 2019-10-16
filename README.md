@@ -1,4 +1,4 @@
-# Projet_Systemes_Numeriques
+# Projet Systèmes Numériques
 Dépôt pour le projet du cours de Systèmes Numériques de l'ENS
 
 
@@ -12,5 +12,5 @@ L'exécutable du simulateur se trouve dans la racine et se nomme simulator
 Les arguments qu'il accepte sont :
 
         -n i : Effectue la simulation pendant i étapes
+        -p : Affiche le programme avant de commencer l'exécution
         -rom file : Fournit la ROM du microprocesseur contenue dans file
-        -ram k : Décrit la taille du vecteur d'adressage de la RAM i.e. une taille de 2^k
