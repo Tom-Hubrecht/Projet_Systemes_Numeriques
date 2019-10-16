@@ -31,6 +31,10 @@ let clear_marks g =
 let find_roots g =
   List.filter (fun n -> n.n_linked_by = []) g.g_nodes
 
+let rec print_list = function
+[] -> print_newline ()
+| e::l -> print_string e ; print_string " " ; print_list l
+
 let has_cycle g =
   clear_marks g;
   let rec aux_vis = function
@@ -48,10 +52,17 @@ let has_cycle g =
 let topological g =
   if has_cycle g then raise Cycle;
   let s_l = ref [] in
+  clear_marks g;
   let rec aux_sort = function
     | [] -> ()
-    | n::q -> s_l := n.n_label::!s_l; aux_sort q; aux_sort n.n_link_to;
+    | n::q ->
+      begin
+        aux_sort n.n_link_to;
+        aux_sort q;
+        if n.n_mark = NotVisited then s_l := n.n_label::!s_l;
+        n.n_mark <- Visited;
+      end
   in
   aux_sort (find_roots g);
-  List.rev !s_l
+  !s_l
 
