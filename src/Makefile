@@ -25,9 +25,13 @@ simulator:$(CMX)
 .mly.mli:
 	ocamlyacc -v $<
 
+# Don't delete .cmi files for Merlin
 clean:
-	# Don't delete .cmi files for Merlin
-	rm -f *.cm[x] *.o *~ $(GENERATED)
+	rm -f *.cmx *.o *~ $(GENERATED)
+
+clean_all:
+	rm -f *.cm[ix] *.o *~ $(GENERATED)
+
 
 .depend depend:$(GENERATED)
 	rm -f .depend
@@ -35,4 +39,4 @@ clean:
 
 include .depend
 
-.PHONY: all clean
+.PHONY: all clean clean_all
