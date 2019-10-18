@@ -1,12 +1,12 @@
 CMX=graph.cmx netlist_ast.cmx netlist_parser.cmx netlist_printer.cmx\
 	netlist_lexer.cmx netlist.cmx scheduler.cmx netlist_simulator.cmx
-GENERATED = netlist_lexer.ml
+GENERATED=netlist_lexer.ml
+BIN=simulator
 
-all: simulator
+all: $(BIN)
 
-simulator:$(CMX)
-	ocamlopt -o simulator $(CMX)
-	mv simulator ../simulator
+$(BIN):$(CMX)
+	ocamlopt -o $(BIN) $(CMX)
 
 .SUFFIXES: .mli .ml .cmi .cmx .mll .mly
 
@@ -27,11 +27,10 @@ simulator:$(CMX)
 
 # Don't delete .cmi files for Merlin
 clean:
-	rm -f *.cmx *.o *~ $(GENERATED)
+	rm -f *.cmx *.o *~ $(BIN) $(GENERATED)
 
-clean_all:
-	rm -f *.cm[ix] *.o *~ $(GENERATED)
-
+clean_all: clean
+	rm -f *.cmi
 
 .depend depend:$(GENERATED)
 	rm -f .depend
