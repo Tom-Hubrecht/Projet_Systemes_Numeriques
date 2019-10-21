@@ -1,4 +1,3 @@
-open Scheduler
 open Netlist
 open Netlist_ast
 open Netlist_printer
@@ -52,6 +51,34 @@ let op x y = function
 let arg_val = function
   | Avar x -> Env.find x !env
   | Aconst v -> v
+
+let fill_rom () =
+  try
+    let r = open_in !rom_file in
+    let v = ref true and x = ref "" in
+    while true do
+      let s = input_line r in
+      if !v then
+        x := s
+      else
+        begin
+          let (m, k), x_rom = Env.find !x !rom in
+          String.iteri
+            (fun i c ->
+               if i < m*k then
+                 begin
+                   match get_val (Char.escaped c) with
+                   | Some b ->
+                     let VBitArray l = x_rom.(i / k) in
+                     l.(i mod k) <- b;
+                     x_rom.(i / k) <- VBitArray l;
+                   | None -> ()
+                 end)
+            s;
+        end
+    done;
+  with
+  | _ -> raise Not_found
 
 let ch_val x v = match (Env.find x !env), v with
   | VBit _, VBit _ -> env := Env.add x v !env
@@ -111,22 +138,31 @@ let eval_equation = function
       | VBitArray l -> ch_val x (VBit l.(i))
       | _ -> raise (Invalid_argument "Wrong type")
     end
-  | x, Erom(_, _, a) -> ch_val x (Env.find x !rom).(int_val (arg_val a));
+  | x, Erom(_, _, a) -> ch_val x (snd (Env.find x !rom)).(int_val (arg_val a));
   | x, Eram(_, _, r_a, w_e, w_a, w_d) ->
     ch_val x (Env.find x !ram).(int_val (arg_val r_a))
 
 let read_inputs l =
   let rec get_bit x =
-    print_string (x^": ");
-    match get_val (read_line ()) with
+    Format.printf "@[%s: @]@?" x;
+    let c = read_line () in
+    match get_val c with
     | Some b -> env := Env.add x (VBit b) !env
-    | None -> print_string "Valeur incorrecte.\n"; get_bit x;
+    | None ->
+      begin
+        if String.length c = 1 then
+          Format.printf "@[Caractère illégal : %s.@]@." c
+        else
+          Format.printf "@[Valeur incorrecte, un bit est attendue mais un array est fourni.@]@.";
+        get_bit x;
+      end
   and get_bitarray x l_x =
-    print_string (x^"["^(string_of_int (Array.length l_x))^"]: ");
+    Format.printf "@[%s[%d]: @]@?" x (Array.length l_x);
     let s = read_line () in
     if String.length s <> Array.length l_x then
       begin
-        print_string "Valeur incorrecte.\n";
+        Format.printf "@[Valeur incorrecte, un array de taille %d est attendu mais l'array fourni est de taille %d@].@."
+          (Array.length l_x) (String.length s);
         get_bitarray x l_x;
       end
     else
@@ -135,7 +171,7 @@ let read_inputs l =
           (fun i c -> match get_val (Char.escaped c) with
              | Some b -> l_x.(i) <- b
              | None ->
-               print_string "Valeur incorrecte.\n";
+               Format.printf "@[Caractère illégal : %c.@]@." c;
                get_bitarray x l_x;)
           s;
         env := Env.add x (VBitArray l_x) !env;
@@ -151,14 +187,13 @@ let eval_ram (x, w_e, w_a, w_d) = match arg_val w_e with
   | VBit true ->
     let x_ram = Env.find x !ram in
     x_ram.(int_val (arg_val w_a)) <- arg_val w_d;
-    (*ram := Env.add x x_ram !ram*)
   | VBit false -> ()
   | _ -> raise (Invalid_argument ("Une valeur VBit est attendue mais "
-                ^(str_arg w_d)^" est un VBitArray"))
+                                  ^(str_arg w_d)^" est un VBitArray"))
 
 let print_outputs l =
   List.iter
-    (fun x -> print_string ("=> "^x^" = "^(str_val (Env.find x !env))^"\n"))
+    (fun x -> Format.printf "@[=> %s = %s@]@." x (str_val (Env.find x !env)))
     l
 
 let execute filename =
@@ -176,8 +211,8 @@ let execute filename =
       List.iter
         (fun (x, e) -> match e with
            | Erom(a_s, w_s, _) ->
-             rom := Env.add x
-                 (Array.make (pow 2 a_s) (VBitArray (Array.make w_s false)))
+             rom := Env.add x (((pow 2 a_s), w_s),
+                               (Array.make (pow 2 a_s) (VBitArray (Array.make w_s false))))
                  !rom;
            | Eram(a_s, w_s, _, w_e, w_a, w_d) ->
              ram := Env.add x
@@ -186,9 +221,10 @@ let execute filename =
              w_ram := (x, w_e, w_a, w_d)::!w_ram;
            | _ -> ())
         s_p.p_eqs;
+      if !rom_file <> "" then fill_rom ();
       while !cr_s <> !nb_s do
         incr cr_s;
-        print_string ("Step "^(string_of_int !cr_s)^"\n");
+        Format.printf "@[Step %d@]@." !cr_s;
         read_inputs s_p.p_inputs;
         List.iter eval_equation s_p.p_eqs;
         List.iter eval_ram !w_ram;
