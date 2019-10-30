@@ -1,5 +1,6 @@
 CMX=graph.cmx netlist_ast.cmx netlist_parser.cmx netlist_printer.cmx\
-	netlist_lexer.cmx netlist.cmx scheduler.cmx netlist_simulator.cmx
+	netlist_lexer.cmx netlist.cmx scheduler.cmx netlist_aux.cmx\
+	netlist_simulator.cmx
 GENERATED=netlist_lexer.ml
 BIN=simulator
 

@@ -1,199 +1,116 @@
 open Netlist
 open Netlist_ast
-open Netlist_printer
+open Netlist_aux
 
 let nb_s = ref (-1)
 let cr_s = ref 0
 let pr_p = ref false
 let rom_file = ref ""
-let env = ref Env.empty
-let rom = ref Env.empty
-let ram = ref Env.empty
-let w_ram = ref []
 
-let int_of_bool = function
-  | true -> 1
-  | false -> 0
-
-let rec pow x = function
-  | 0 -> 1
-  | 1 -> x
-  | n -> let r = (pow x (n/2)) in r * r * (pow x (n mod 2))
-
-let int_val = function
-  | VBitArray v ->
-    let k = ref 0 in
-    Array.iteri (fun i b -> k := 2 * !k + (int_of_bool b)) v;
-    !k
-  | VBit b -> if b then 1 else 0
-
-let get_val = function
-  | "1" | "t" -> Some true
-  | "0" | "f" -> Some false
-  | _ -> None
-
-let str_val = function
-  | VBit true -> "1"
-  | VBit false -> "0"
-  | VBitArray l ->
-    Array.fold_left (fun s x -> if x then s^"1" else s^"0") "" l
-
-let str_arg = function
-  | Avar x -> x
-  | Aconst v -> str_val v
-
-let op x y = function
-  | Or -> x || y
-  | Xor -> (x && not y) || (not x && y)
-  | And -> x && y
-  | Nand -> not (x && y)
-
-let arg_val = function
-  | Avar x -> Env.find x !env
-  | Aconst v -> v
-
-let fill_rom () =
-  try
-    let r = open_in !rom_file in
-    let v = ref true and x = ref "" in
-    while true do
-      let s = input_line r in
-      if !v then
-        x := s
-      else
-        begin
-          let (m, k), x_rom = Env.find !x !rom in
-          String.iteri
-            (fun i c ->
-               if i < m*k then
-                 begin
-                   match get_val (Char.escaped c) with
-                   | Some b ->
-                     let VBitArray l = x_rom.(i / k) in
-                     l.(i mod k) <- b;
-                     x_rom.(i / k) <- VBitArray l;
-                   | None -> ()
-                 end)
-            s;
-        end
-    done;
-  with
-  | _ -> raise Not_found
-
-let ch_val x v = match (Env.find x !env), v with
-  | VBit _, VBit _ -> env := Env.add x v !env
-  | (VBitArray lx), (VBitArray lv) ->
-    if Array.length lx = Array.length lv then
-      env := Env.add x v !env
+let fill_rom rom =
+  let r = open_in !rom_file in
+  let v = ref true and x = ref "" in
+  while true do
+    let s = input_line r in
+    if !v then
+      x := s
     else
-      raise (Invalid_argument "Arrays length not matching")
-  | VBit _, (VBitArray [|b|]) -> env := Env.add x (VBit b) !env
-  | (VBitArray [|_|]), VBit b -> env := Env.add x (VBitArray [|b|]) !env
-  | _ -> raise (Invalid_argument "Not the same type(ch_val)")
+      begin
+        let m, k, x_rom = Env.find !x rom in
+        String.iteri
+          (fun i c ->
+             if i < m*k then
+               begin
+                 match bool_of_char c with
+                 | Some b ->
+                   let VBitArray l = Hashtbl.find x_rom (i/k) in
+                   l.(i mod k) <- b;
+                   Hashtbl.replace x_rom (i/k) (VBitArray l);
+                 | None -> ()
+               end)
+          s;
+      end;
+    v := not !v;
+  done
 
-let eval_equation = function
-  | x, (Earg a) -> ch_val x (arg_val a)
-  | x, (Ereg r) -> ch_val x (Env.find r !env)
+let eval_equation mem = function
+  | x, (Earg a) -> ch_val x (bit_of_arg mem.env a) mem
+  | x, (Ereg r) -> ch_val x (Env.find r mem.env) mem
   | x, (Enot a) ->
     begin
-      match arg_val a with
-      | VBit b -> ch_val x (VBit (not b))
-      | VBitArray l -> ch_val x (VBitArray (Array.map (fun b -> not b) l))
+      match bit_of_arg mem.env a with
+      | VBit b -> ch_val x (VBit (not b)) mem
+      | VBitArray l -> ch_val x (VBitArray (Array.map (fun b -> not b) l)) mem
     end
   | x, Ebinop(o, a1, a2) ->
     begin
-      match (arg_val a1), (arg_val a2) with
-      | (VBit b1), (VBit b2) -> ch_val x (VBit (op b1 b2 o))
+      match (bit_of_arg mem.env a1), (bit_of_arg mem.env a2) with
+      | (VBit b1), (VBit b2) -> ch_val x (VBit (op b1 b2 o)) mem
       | (VBitArray l1), (VBitArray l2) ->
-        ch_val x (VBitArray (Array.map2 (fun x y -> op x y o) l1 l2))
+        ch_val x (VBitArray (Array.map2 (fun x y -> op x y o) l1 l2)) mem
       | _ -> raise (Invalid_argument "Not the same type(binop)")
     end
   | x, Emux(m, a1, a2) ->
     begin
-      match arg_val m with
+      match bit_of_arg mem.env m with
       | VBit b ->
-        if b then ch_val x (arg_val a1) else ch_val x (arg_val a2)
+        if b then
+          ch_val x (bit_of_arg mem.env a1) mem
+        else
+          ch_val x (bit_of_arg mem.env a2) mem
       | _ -> raise (Invalid_argument "Wrong type")
     end
   | x, Econcat(a1, a2) ->
     begin
-      match (arg_val a1), (arg_val a2) with
+      match (bit_of_arg mem.env a1), (bit_of_arg mem.env a2) with
       | (VBitArray l1), (VBitArray l2) ->
-        ch_val x (VBitArray (Array.append l1 l2))
-      | (VBit b1), (VBit b2) -> ch_val x (VBitArray [|b1; b2|])
+        ch_val x (VBitArray (Array.append l1 l2)) mem
+      | (VBit b1), (VBit b2) -> ch_val x (VBitArray [|b1; b2|]) mem
       | (VBit b), (VBitArray l) ->
-        ch_val x (VBitArray (Array.append [|b|] l))
+        ch_val x (VBitArray (Array.append [|b|] l)) mem
       | (VBitArray l), (VBit b) ->
-        ch_val x (VBitArray (Array.append l [|b|]))
+        ch_val x (VBitArray (Array.append l [|b|])) mem
     end
   | x, Eslice(i1, i2, a) ->
     begin
-      match arg_val a with
-      | VBitArray l -> ch_val x (VBitArray (Array.sub l i1 (i2 - i1 + 1)))
+      match bit_of_arg mem.env a with
+      | VBitArray l -> ch_val x (VBitArray (Array.sub l i1 (i2 - i1 + 1))) mem
       | _ -> raise (Invalid_argument "Wrong type")
     end
   | x, Eselect(i, a) ->
     begin
-      match arg_val a with
-      | VBitArray l -> ch_val x (VBit l.(i))
+      match bit_of_arg mem.env a with
+      | VBitArray l -> ch_val x (VBit l.(i)) mem
       | _ -> raise (Invalid_argument "Wrong type")
     end
-  | x, Erom(_, _, a) -> ch_val x (snd (Env.find x !rom)).(int_val (arg_val a));
-  | x, Eram(_, _, r_a, w_e, w_a, w_d) ->
-    ch_val x (Env.find x !ram).(int_val (arg_val r_a))
+  | x, Erom(_, _, a) ->
+    ch_val x (from_rom x a mem) mem
+  | x, Eram(_, _, a, _, _, _) ->
+    ch_val x (from_ram x a mem) mem
 
-let read_inputs l =
-  let rec get_bit x =
-    Format.printf "@[%s: @]@?" x;
-    let c = read_line () in
-    match get_val c with
-    | Some b -> env := Env.add x (VBit b) !env
-    | None ->
-      begin
-        if String.length c = 1 then
-          Format.printf "@[Caractère illégal : %s.@]@." c
-        else
-          Format.printf "@[Valeur incorrecte, un bit est attendue mais un array est fourni.@]@.";
-        get_bit x;
-      end
-  and get_bitarray x l_x =
-    Format.printf "@[%s[%d]: @]@?" x (Array.length l_x);
-    let s = read_line () in
-    if String.length s <> Array.length l_x then
-      begin
-        Format.printf "@[Valeur incorrecte, un array de taille %d est attendu mais l'array fourni est de taille %d@].@."
-          (Array.length l_x) (String.length s);
-        get_bitarray x l_x;
-      end
-    else
-      begin
-        String.iteri
-          (fun i c -> match get_val (Char.escaped c) with
-             | Some b -> l_x.(i) <- b
-             | None ->
-               Format.printf "@[Caractère illégal : %c.@]@." c;
-               get_bitarray x l_x;)
-          s;
-        env := Env.add x (VBitArray l_x) !env;
-      end
+let read_inputs l env =
+  let rec inp_aux e x =
+    let t_x =
+      (match Env.find x e with
+        | VBit _ -> TBit
+        | VBitArray l -> TBitArray (Array.length l))
+    in
+    match ask_bit x t_x with
+    | Some v -> Env.add x v e
+    | None -> inp_aux e x
   in
-  List.iter
-    (fun x -> match Env.find x !env with
-       | VBit _ -> get_bit x;
-       | VBitArray l_x -> get_bitarray x l_x;)
-    l
+  List.fold_left inp_aux env l
 
-let eval_ram (x, w_e, w_a, w_d) = match arg_val w_e with
-  | VBit true ->
-    let x_ram = Env.find x !ram in
-    x_ram.(int_val (arg_val w_a)) <- arg_val w_d;
-  | VBit false -> ()
+let eval_ram mem (x, w_e, w_a, w_d) = match bit_of_arg mem.env w_e with
+  | VBit true | VBitArray [|true|] -> ch_ram x w_a w_d mem
+  | VBit false | VBitArray [|false|] -> ()
   | _ -> raise (Invalid_argument ("Une valeur VBit est attendue mais "
-                                  ^(str_arg w_d)^" est un VBitArray"))
+                                  ^(string_of_arg w_d)^" est un VBitArray"))
 
-let print_outputs l =
+let print_outputs l env =
   List.iter
-    (fun x -> Format.printf "@[=> %s = %s@]@." x (str_val (Env.find x !env)))
+    (fun x ->
+       Format.printf "@[=> %s = %s@]@." x (string_of_bit (Env.find x env)))
     l
 
 let execute filename =
@@ -202,33 +119,37 @@ let execute filename =
     try
       let s_p = Scheduler.schedule p in
       if !pr_p then Netlist_printer.print_program stdout s_p;
-      Env.iter
-        (fun x t -> match t with
-           | TBit -> env := (Env.add x (VBit false) !env);
-           | TBitArray n ->
-             env := Env.add x (VBitArray (Array.make n false)) !env)
-        s_p.p_vars;
-      List.iter
-        (fun (x, e) -> match e with
-           | Erom(a_s, w_s, _) ->
-             rom := Env.add x (((pow 2 a_s), w_s),
+      let env = Env.fold
+          (fun x t e -> match t with
+             | TBit -> Env.add x (VBit false) e
+             | TBitArray n -> Env.add x (VBitArray (Array.make n false)) e)
+          s_p.p_vars Env.empty in
+      let w_ram, rom, ram = List.fold_left
+          (fun (l, ro, ra) (x, e) -> match e with
+             | Erom(a_s, w_s, _) ->
+               (l, (Env.add x (a_s, w_s, Hashtbl.create a_s) ro), ra)
+             (*rom := Env.add x (((pow 2 a_s), w_s),
                                (Array.make (pow 2 a_s) (VBitArray (Array.make w_s false))))
                  !rom;
-           | Eram(a_s, w_s, _, w_e, w_a, w_d) ->
-             ram := Env.add x
-                 (Array.make (pow 2 a_s) (VBitArray (Array.make w_s false)))
-                 !ram;
-             w_ram := (x, w_e, w_a, w_d)::!w_ram;
-           | _ -> ())
-        s_p.p_eqs;
-      if !rom_file <> "" then fill_rom ();
+               l*)
+             | Eram(a_s, w_s, _, w_e, w_a, w_d) ->
+               (*ram := Env.add x
+                   (Array.make (pow 2 a_s) (VBitArray (Array.make w_s false)))
+                   !ram;*)
+               ((x, w_e, w_a, w_d)::l, ro,
+                (Env.add x (a_s, w_s, Hashtbl.create a_s) ra))
+             | _ -> (l, ro, ra))
+          ([], Env.empty, Env.empty) s_p.p_eqs in
+      let mem = {env = env; rom = rom; ram = ram} in
+      if !rom_file <> "" then
+        fill_rom mem.rom;
       while !cr_s <> !nb_s do
         incr cr_s;
         Format.printf "@[Step %d@]@." !cr_s;
-        read_inputs s_p.p_inputs;
-        List.iter eval_equation s_p.p_eqs;
-        List.iter eval_ram !w_ram;
-        print_outputs s_p.p_outputs;
+        mem.env <- read_inputs s_p.p_inputs mem.env;
+        List.iter (eval_equation mem) s_p.p_eqs;
+        List.iter (eval_ram mem) w_ram;
+        print_outputs s_p.p_outputs mem.env;
       done;
     with
     | Scheduler.Combinational_cycle ->
