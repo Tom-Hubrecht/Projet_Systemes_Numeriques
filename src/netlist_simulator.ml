@@ -10,28 +10,37 @@ let rom_file = ref ""
 let fill_rom rom =
   let r = open_in !rom_file in
   let v = ref true and x = ref "" in
-  while true do
-    let s = input_line r in
-    if !v then
-      x := s
-    else
-      begin
-        let m, k, x_rom = Env.find !x rom in
-        String.iteri
-          (fun i c ->
-             if i < m*k then
-               begin
-                 match bool_of_char c with
-                 | Some b ->
-                   let VBitArray l = Hashtbl.find x_rom (i/k) in
-                   l.(i mod k) <- b;
-                   Hashtbl.replace x_rom (i/k) (VBitArray l);
-                 | None -> ()
-               end)
-          s;
-      end;
-    v := not !v;
-  done
+  try
+    while true do
+      let s = input_line r in
+      if !v then
+        x := s
+      else
+        begin
+          let m, k, x_rom = Env.find !x rom in
+          let i = ref 0 and j = ref 0 in
+          let v = Array.make k false in
+          let l = ref v in
+          while (k * !i + !j) < String.length s && !i < (pow 2 m) do
+            if !j = 0 then l := v;
+            begin
+              match bool_of_char s.[k * !i + !j] with
+              | Some b -> !l.(!j) <- b
+              | None -> ()
+            end;
+            if !j = k - 1 then
+              begin
+                Hashtbl.replace x_rom !i (VBitArray (Array.copy !l));
+                j := 0;
+                i := !i + 1;
+              end
+            else
+              j := !j + 1;
+          done;
+        end;
+      v := not !v;
+    done;
+  with End_of_file -> close_in r
 
 let eval_equation mem = function
   | x, (Earg a) -> ch_val x (bit_of_arg mem.env a) mem
@@ -92,8 +101,8 @@ let read_inputs l env =
   let rec inp_aux e x =
     let t_x =
       (match Env.find x e with
-        | VBit _ -> TBit
-        | VBitArray l -> TBitArray (Array.length l))
+       | VBit _ -> TBit
+       | VBitArray l -> TBitArray (Array.length l))
     in
     match ask_bit x t_x with
     | Some v -> Env.add x v e
