@@ -8,9 +8,9 @@ clean:
 	rm -f $(BIN)
 	@$(MAKE) -C src/ clean
 
-clean_all:
+clean_cmx:
 	rm -f $(BIN)
-	@$(MAKE) -C src/ clean_all
+	@$(MAKE) -C src/ clean_cmx
 
-.PHONY: all clean
+.PHONY: all clean clean_cmx
 

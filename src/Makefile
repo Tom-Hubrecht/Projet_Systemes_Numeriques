@@ -27,10 +27,10 @@ $(BIN):$(CMX)
 	ocamlyacc -v $<
 
 # Don't delete .cmi files for Merlin
-clean:
+clean_cmx:
 	rm -f *.cmx *.o *~ $(BIN) $(GENERATED)
 
-clean_all: clean
+clean: clean_cmx
 	rm -f *.cmi
 
 .depend depend:$(GENERATED)
@@ -39,4 +39,4 @@ clean_all: clean
 
 include .depend
 
-.PHONY: all clean clean_all
+.PHONY: all clean clean_cmx
