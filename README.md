@@ -14,3 +14,7 @@ Les arguments qu'il accepte sont :
         -n i : Effectue la simulation pendant i étapes
         -p : Affiche le programme avant de commencer l'exécution
         -rom file : Fournit la ROM du microprocesseur contenue dans file
+
+## Nettoyage
+Pour nettoyer les fichiers compilés, effectuer :
+        make clean
