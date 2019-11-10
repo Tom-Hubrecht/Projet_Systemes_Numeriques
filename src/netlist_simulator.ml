@@ -137,14 +137,7 @@ let execute filename =
           (fun (l, ro, ra) (x, e) -> match e with
              | Erom(a_s, w_s, _) ->
                (l, (Env.add x (a_s, w_s, Hashtbl.create a_s) ro), ra)
-             (*rom := Env.add x (((pow 2 a_s), w_s),
-                               (Array.make (pow 2 a_s) (VBitArray (Array.make w_s false))))
-                 !rom;
-               l*)
              | Eram(a_s, w_s, _, w_e, w_a, w_d) ->
-               (*ram := Env.add x
-                   (Array.make (pow 2 a_s) (VBitArray (Array.make w_s false)))
-                   !ram;*)
                ((x, w_e, w_a, w_d)::l, ro,
                 (Env.add x (a_s, w_s, Hashtbl.create a_s) ra))
              | _ -> (l, ro, ra))
