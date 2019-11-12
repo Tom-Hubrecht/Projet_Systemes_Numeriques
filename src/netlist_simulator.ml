@@ -121,7 +121,7 @@ let eval_reg mem (x, r) = ch_val x (Env.find r mem.env) mem
 let print_outputs l env =
   List.iter
     (fun x ->
-       Format.printf "@[=> %s = %s@]@." x (string_of_bit (Env.find x env)))
+       Format.printf "=> %s = %s@." x (string_of_bit (Env.find x env)))
     l
 
 let execute filename =
@@ -150,7 +150,7 @@ let execute filename =
         fill_rom mem.rom;
       while !cr_s <> !nb_s do
         incr cr_s;
-        Format.printf "@[Step %d@]@." !cr_s;
+        Format.printf "Step %d@." !cr_s;
         mem.env <- read_inputs s_p.p_inputs mem.env;
         List.iter (eval_equation mem) s_p.p_eqs;
         List.iter (eval_ram mem) w_ram;

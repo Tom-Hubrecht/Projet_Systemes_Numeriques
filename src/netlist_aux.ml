@@ -60,9 +60,9 @@ let bit_of_string s = function
       end
 
 let ask_bit x = function
-  | TBit -> printf "@[%s: @]@?" x; bit_of_string (read_line ()) TBit
+  | TBit -> printf "%s: @?" x; bit_of_string (read_line ()) TBit
   | TBitArray n as t_x ->
-    printf "@[%s[%d]: @]@?" x n;
+    printf "%s[%d]: @?" x n;
     bit_of_string (read_line ()) t_x
 
 let int_of_bit = function
