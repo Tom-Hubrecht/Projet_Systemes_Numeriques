@@ -44,7 +44,7 @@ let fill_rom rom =
 
 let eval_equation mem = function
   | x, (Earg a) -> ch_val x (bit_of_arg mem.env a) mem
-  | x, (Ereg r) -> ch_val x (Env.find r mem.env) mem
+  | x, (Ereg r) -> () (*ch_val x (Env.find r mem.env) mem*)
   | x, (Enot a) ->
     begin
       match bit_of_arg mem.env a with
@@ -116,6 +116,8 @@ let eval_ram mem (x, w_e, w_a, w_d) = match bit_of_arg mem.env w_e with
   | _ -> raise (Invalid_argument ("Une valeur VBit est attendue mais "
                                   ^(string_of_arg w_d)^" est un VBitArray"))
 
+let eval_reg mem (x, r) = ch_val x (Env.find r mem.env) mem
+
 let print_outputs l env =
   List.iter
     (fun x ->
@@ -133,15 +135,16 @@ let execute filename =
              | TBit -> Env.add x (VBit false) e
              | TBitArray n -> Env.add x (VBitArray (Array.make n false)) e)
           s_p.p_vars Env.empty in
-      let w_ram, rom, ram = List.fold_left
-          (fun (l, ro, ra) (x, e) -> match e with
+      let l_reg, w_ram, rom, ram = List.fold_left
+          (fun (r, l, ro, ra) (x, e) -> match e with
              | Erom(a_s, w_s, _) ->
-               (l, (Env.add x (a_s, w_s, Hashtbl.create a_s) ro), ra)
+               (r, l, (Env.add x (a_s, w_s, Hashtbl.create a_s) ro), ra)
              | Eram(a_s, w_s, _, w_e, w_a, w_d) ->
-               ((x, w_e, w_a, w_d)::l, ro,
+               (r, (x, w_e, w_a, w_d)::l, ro,
                 (Env.add x (a_s, w_s, Hashtbl.create a_s) ra))
-             | _ -> (l, ro, ra))
-          ([], Env.empty, Env.empty) s_p.p_eqs in
+             | Ereg a -> ((x, a)::r, l, ro, ra)
+             | _ -> (r, l, ro, ra))
+          ([], [], Env.empty, Env.empty) s_p.p_eqs in
       let mem = {env = env; rom = rom; ram = ram} in
       if !rom_file <> "" then
         fill_rom mem.rom;
@@ -152,6 +155,7 @@ let execute filename =
         List.iter (eval_equation mem) s_p.p_eqs;
         List.iter (eval_ram mem) w_ram;
         print_outputs s_p.p_outputs mem.env;
+        List.iter (eval_reg mem) l_reg;
       done;
     with
     | Scheduler.Combinational_cycle ->
