@@ -106,7 +106,9 @@ let read_inputs l env =
     in
     match ask_bit x t_x with
     | Some v -> Env.add x v e
-    | None -> inp_aux e x
+    | None ->
+      Format.printf "Valeur incorrecte pour %s.@." x;
+      inp_aux e x
   in
   List.fold_left inp_aux env l
 
