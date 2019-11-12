@@ -6,7 +6,7 @@ BIN=simulator
 
 all: $(BIN)
 
-$(BIN):$(CMX)
+$(BIN): $(CMX)
 	ocamlopt -o $(BIN) $(CMX)
 
 .SUFFIXES: .mli .ml .cmi .cmx .mll .mly
