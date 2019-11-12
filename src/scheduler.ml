@@ -44,15 +44,18 @@ let schedule p =
       end
   in
   aux_sch p.p_eqs;
-  let s_l = Graph.topological g in
-  let n_eqs = ref [] in
-  let rec find_eq x = function
-    | [] -> []
-    | (a, e)::q when a = x ->
-      n_eqs := (a, e)::!n_eqs;
-      q
-    | t::q -> t::(find_eq x q)
-  in
-  let eqs = ref p.p_eqs in
-  List.iter (fun x -> eqs := find_eq x !eqs) s_l;
-  { p with p_eqs = (List.rev !n_eqs)}
+  try
+    let s_l = Graph.topological g in
+    let n_eqs = ref [] in
+    let rec find_eq x = function
+      | [] -> []
+      | (a, e)::q when a = x ->
+        n_eqs := (a, e)::!n_eqs;
+        q
+      | t::q -> t::(find_eq x q)
+    in
+    let eqs = ref p.p_eqs in
+    List.iter (fun x -> eqs := find_eq x !eqs) s_l;
+    { p with p_eqs = (List.rev !n_eqs)}
+  with
+  | Graph.Cycle -> raise Combinational_cycle
