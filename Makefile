@@ -5,11 +5,11 @@ all:
 	mv src/$(BIN) ./
 
 clean:
-	rm -f $(BIN)
+	rm -f $(BIN) projet_sysnum.tgz
 	@$(MAKE) -C src/ clean
 
 clean_cmx:
-	rm -f $(BIN)
+	rm -f $(BIN) projet_sysnum.tgz
 	@$(MAKE) -C src/ clean_cmx
 
 ship: clean
